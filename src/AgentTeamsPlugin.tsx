@@ -1,13 +1,12 @@
 import React from 'react';
 import * as Flex from '@twilio/flex-ui';
 import { FlexPlugin } from '@twilio/flex-plugin';
+import { CustomizationProvider, PasteCustomCSS, CustomizationProviderProps } from '@twilio-paste/core/customization';
 
-import AgentTeamsView from './components/AgentTeamsView/AgentTeamsViewContainer';
-import AgentTeamsSimpleView from './components/AgentTeamsSimpleView/AgentTeamsSimpleViewComponent';
-import reducers, { namespace } from './states';
+import AgentTeamsSideLink from './components/AgentTeamsSideLink';
+import AgentTeamsView from './components/AgentTeamsView';
+import reducers, { reduxNamespace } from './states/AgentTeamsSlice';
 import WorkerStateHelper from './WorkerStateHelper';
-import { extensionFilter, queueFilter, roleFilter, teamFilter } from './filters';
-import { TeamsView, WorkersDataTable } from '@twilio/flex-ui';
 
 const PLUGIN_NAME = 'AgentTeamsPlugin';
 
@@ -28,63 +27,39 @@ export default class AgentTeamsPlugin extends FlexPlugin {
    * @param manager { Flex.Manager }
    */
   async init(flex: typeof Flex, manager: Flex.Manager): Promise<void> {
-    this.registerReducers(manager);
+    // Add any custom teams view filters here
+    let teamsViewFilters = [
+      Flex.TeamsView.activitiesFilter,
+    ];
+    
+    flex.setProviders({
+      CustomProvider: (RootComponent) => (props) => {
+        const pasteProviderProps: CustomizationProviderProps & { style: PasteCustomCSS } = {
+          baseTheme: props.theme?.isLight ? "default" : "dark",
+          theme: props.theme?.tokens,
+          style: { minWidth: "100%", height: "100%" },
+          elements: { }
+        };
+        
+        return (
+          <CustomizationProvider {...pasteProviderProps}>
+            <RootComponent {...props} />
+          </CustomizationProvider>
+        )
+      }
+    });
     
     if (!this.showAgentViews(manager)) return;
     
-    let teamsViewFilters = [
-      TeamsView.activitiesFilter,
-      extensionFilter,
-      queueFilter,
-      roleFilter,
-      teamFilter
-    ];
-    
-    flex.WorkersDataTable.defaultProps.filters = [
-      ...WorkersDataTable.defaultFilters,
-      {
-        query: 'data.activity_name == "Break"',
-        text: "Workers on break"
-      }
-    ];
+    this.registerReducers(manager);
     
     flex.ViewCollection.Content.add(
       <Flex.View name="agent-teams" key="agent-teams">
         <AgentTeamsView workerHelper={this.workerHelper} filters={teamsViewFilters} />
       </Flex.View>
-    )
+    );
     
-    flex.ViewCollection.Content.add(
-      <Flex.View name="agent-teams-simple" key="agent-teams-simple">
-        <AgentTeamsSimpleView />
-      </Flex.View>
-    )
-    
-    flex.SideNav.Content.add(
-      <Flex.SideLink
-      key="agent-teams"
-      icon="Agents"
-      iconActive="AgentsBold"
-      showLabel={true}
-      onClick={() => {
-        flex.Actions.invokeAction("NavigateToView", {
-          viewName: "agent-teams"
-        })
-      }}>Agent Teams</Flex.SideLink>, {sortOrder:1}
-    )
-    
-    flex.SideNav.Content.add(
-      <Flex.SideLink
-      key="agent-teams-simple"
-      icon="Agents"
-      iconActive="AgentsBold"
-      showLabel={true}
-      onClick={() => {
-        flex.Actions.invokeAction("NavigateToView", {
-          viewName: "agent-teams-simple"
-        })
-      }}>Agent Teams Simple</Flex.SideLink>, {sortOrder:1}
-    )
+    flex.SideNav.Content.add(<AgentTeamsSideLink viewName='agent-teams' key='agent-teams-side-nav' />, { sortOrder: 1 });
   }
   
   showAgentViews(manager: Flex.Manager) {
@@ -104,6 +79,6 @@ export default class AgentTeamsPlugin extends FlexPlugin {
       return;
     }
 
-    manager.store.addReducer(namespace, reducers);
+    manager.store.addReducer(reduxNamespace, reducers);
   }
 }
